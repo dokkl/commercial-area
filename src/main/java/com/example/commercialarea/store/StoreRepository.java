@@ -5,7 +5,9 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
 import java.sql.PreparedStatement;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Repository
 public class StoreRepository {
@@ -65,5 +67,28 @@ public class StoreRepository {
 
     public long countAll() {
         return jdbc.sql("SELECT COUNT(*) FROM store").query(Long.class).single();
+    }
+
+    public List<GridCell> aggregate(MapQuery query, double cell) {
+        StringBuilder sql = new StringBuilder("""
+                SELECT FLOOR(lat / :cell) AS gy,
+                       FLOOR(lon / :cell) AS gx,
+                       COUNT(*) AS cnt,
+                       AVG(lat) AS clat,
+                       AVG(lon) AS clon
+                FROM store
+                """);
+        Map<String, Object> params = new HashMap<>();
+        params.put("cell", cell);
+        StoreFilterSql.appendWhere(sql, params, query);
+        sql.append(" GROUP BY gy, gx");
+
+        return jdbc.sql(sql.toString())
+                .params(params)
+                .query((rs, n) -> new GridCell(
+                        rs.getDouble("clat"),
+                        rs.getDouble("clon"),
+                        rs.getLong("cnt")))
+                .list();
     }
 }
