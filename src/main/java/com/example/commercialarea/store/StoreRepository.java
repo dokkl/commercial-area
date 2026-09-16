@@ -8,6 +8,7 @@ import java.sql.PreparedStatement;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Repository
 public class StoreRepository {
@@ -90,5 +91,82 @@ public class StoreRepository {
                         rs.getDouble("clon"),
                         rs.getLong("cnt")))
                 .list();
+    }
+
+    public List<MapPoint> findPoints(MapQuery query) {
+        StringBuilder sql = new StringBuilder(
+                "SELECT store_id, store_name, lat, lon, large_name FROM store");
+        Map<String, Object> params = new HashMap<>();
+        StoreFilterSql.appendWhere(sql, params, query);
+
+        return jdbc.sql(sql.toString())
+                .params(params)
+                .query((rs, n) -> new MapPoint(
+                        rs.getString("store_id"),
+                        rs.getString("store_name"),
+                        rs.getDouble("lat"),
+                        rs.getDouble("lon"),
+                        rs.getString("large_name")))
+                .list();
+    }
+
+    public long countFiltered(MapQuery query) {
+        StringBuilder sql = new StringBuilder("SELECT COUNT(*) FROM store");
+        Map<String, Object> params = new HashMap<>();
+        StoreFilterSql.appendWhere(sql, params, query);
+
+        return jdbc.sql(sql.toString()).params(params).query(Long.class).single();
+    }
+
+    public List<StoreSummary> findPage(MapQuery query, int page, int size) {
+        StringBuilder sql = new StringBuilder("""
+                SELECT store_id, store_name, branch_name,
+                       large_name, medium_name, small_name, road_address, lat, lon
+                FROM store
+                """);
+        Map<String, Object> params = new HashMap<>();
+        StoreFilterSql.appendWhere(sql, params, query);
+        // store_id는 PK라 페이지 간 정렬이 안정적이다.
+        sql.append(" ORDER BY store_id LIMIT :limit OFFSET :offset");
+        params.put("limit", size);
+        params.put("offset", (long) page * size);
+
+        return jdbc.sql(sql.toString())
+                .params(params)
+                .query((rs, n) -> new StoreSummary(
+                        rs.getString("store_id"),
+                        rs.getString("store_name"),
+                        rs.getString("branch_name"),
+                        rs.getString("large_name"),
+                        rs.getString("medium_name"),
+                        rs.getString("small_name"),
+                        rs.getString("road_address"),
+                        rs.getDouble("lat"),
+                        rs.getDouble("lon")))
+                .list();
+    }
+
+    public Optional<StoreDetail> findById(String storeId) {
+        return jdbc.sql("""
+                        SELECT store_id, store_name, branch_name,
+                               large_code, large_name, medium_code, medium_name,
+                               small_code, small_name,
+                               sido_code, sido_name, sgg_code, sgg_name, dong_code, dong_name,
+                               lot_address, building_name, road_address, floor_info, lon, lat
+                        FROM store WHERE store_id = :id
+                        """)
+                .param("id", storeId)
+                .query((rs, n) -> new StoreDetail(
+                        rs.getString("store_id"), rs.getString("store_name"), rs.getString("branch_name"),
+                        rs.getString("large_code"), rs.getString("large_name"),
+                        rs.getString("medium_code"), rs.getString("medium_name"),
+                        rs.getString("small_code"), rs.getString("small_name"),
+                        rs.getString("sido_code"), rs.getString("sido_name"),
+                        rs.getString("sgg_code"), rs.getString("sgg_name"),
+                        rs.getString("dong_code"), rs.getString("dong_name"),
+                        rs.getString("lot_address"), rs.getString("building_name"),
+                        rs.getString("road_address"), rs.getString("floor_info"),
+                        rs.getDouble("lon"), rs.getDouble("lat")))
+                .optional();
     }
 }
