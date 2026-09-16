@@ -1,0 +1,25 @@
+spring:
+  application:
+    name: commercial-area
+  datasource:
+    url: jdbc:mysql://localhost:3307/commercial_area?rewriteBatchedStatements=true&characterEncoding=UTF-8&serverTimezone=Asia/Seoul
+    username: app
+    password: app
+    hikari:
+      maximum-pool-size: 10
+  sql:
+    init:
+      mode: always
+  thymeleaf:
+    cache: false
+
+app:
+  import:
+    enabled: true
+    dir: /data/csv
+    include: ["서울", "경기"]
+    batch-size: 1000
+
+logging:
+  level:
+    com.example.commercialarea: INFO
