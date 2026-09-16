@@ -40,7 +40,9 @@ function currentParams() {
 
 function cellRadius(count) {
   // 선형으로 키우면 대도시 셀 하나가 화면을 덮는다.
-  return Math.min(38, 7 + Math.sqrt(count) * 0.75);
+  // 격자 한 칸은 모든 줌 레벨에서 항상 화면 32px 폭이므로(360/2^(z+3) 도 * 256*2^z/360 px/도 = 32px),
+  // 반지름 상한은 그 칸에 들어가도록 16px(지름 32px)을 넘지 않게 잡는다.
+  return Math.min(16, 4 + Math.sqrt(count) * 0.6);
 }
 
 function renderMap(data) {
@@ -98,11 +100,17 @@ function escapeHtml(value) {
   }[c]));
 }
 
+// 느린 응답이 그 사이 사용자가 떠난 뷰포트의 데이터로 화면을 덮어쓰는 것을 막기 위한 순번 토큰.
+// (좁은 bbox는 ~150ms, 전국 bbox는 ~900ms까지 걸려 응답이 요청 순서대로 돌아오지 않을 수 있다.)
+let refreshSeq = 0;
+
 // Task 12에서 목록 갱신을 합치기 위해 재할당하므로 let으로 선언한다.
 let refresh = async function () {
+  const seq = ++refreshSeq;
   const params = currentParams();
   try {
     const data = await fetch('/api/map?' + params).then(r => r.json());
+    if (seq !== refreshSeq) return; // 더 최신 refresh가 이미 시작됐다 — 이 응답은 버린다.
     if (data.error) {
       console.warn('지도 조회 실패', data);
       return;
@@ -110,6 +118,7 @@ let refresh = async function () {
     renderMap(data);
     document.getElementById('total').textContent = data.total.toLocaleString();
   } catch (e) {
+    if (seq !== refreshSeq) return;
     console.error('지도 조회 실패', e);
   }
 };
