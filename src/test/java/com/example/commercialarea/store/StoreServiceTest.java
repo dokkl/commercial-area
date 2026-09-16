@@ -109,4 +109,23 @@ class StoreServiceTest {
                 .isInstanceOf(ApiException.class)
                 .hasFieldOrPropertyWithValue("code", "STORE_NOT_FOUND");
     }
+
+    @Test
+    void list의_total은_countFiltered에서_오고_items_size가_아니다() {
+        seed(25, "I2", "음식");
+
+        PageResponse<StoreSummary> response = service.list(seoul(), 0, 10);
+
+        // total이 items.size()에서 나온다면 25가 아니라 10이 되어 이 단언이 깨진다.
+        assertThat(response.total()).isEqualTo(25);
+        assertThat(response.items()).hasSize(10);
+    }
+
+    @Test
+    void list_결과가_없으면_total은_0이고_items는_빈_목록이다() {
+        PageResponse<StoreSummary> response = service.list(seoul(), 0, 10);
+
+        assertThat(response.total()).isZero();
+        assertThat(response.items()).isEmpty();
+    }
 }
