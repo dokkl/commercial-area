@@ -27,7 +27,13 @@ public class StoreRepository {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    /** INSERT IGNORE 이므로 재실행해도 중복이 생기지 않는다. */
+    /**
+     * INSERT IGNORE 이므로 재실행해도 중복이 생기지 않는다.
+     *
+     * JdbcClient는 배치 API를 제공하지 않으므로, 122만 행 적재처럼 배치가 필요한 곳에서는
+     * 의도적으로 JdbcTemplate.batchUpdate를 사용한다. 이 메서드는 내부적으로 청크를 나누지
+     * 않으므로 호출하는 쪽에서 미리 적절한 크기로 나눠 전달해야 한다.
+     */
     public int insertBatch(List<Store> stores) {
         jdbcTemplate.batchUpdate(INSERT_SQL, stores, stores.size(), StoreRepository::bind);
         return stores.size();
