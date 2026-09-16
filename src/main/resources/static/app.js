@@ -45,24 +45,48 @@ function cellRadius(count) {
   return Math.min(16, 4 + Math.sqrt(count) * 0.6);
 }
 
+/**
+ * 32px 원 안에 들어가도록 건수를 간략 표기한다.
+ * 1,000 미만은 그대로, 1,000 이상은 "N.N천", 10,000 이상은 "N.N만" — 소수점 첫째 자리,
+ * 정수면 ".0"을 뗀다. 예: 847 -> "847", 1,562 -> "1.6천", 16,799 -> "1.7만".
+ */
+function formatCellCount(count) {
+  if (count < 1000) return String(count);
+
+  let unit = count >= 10000 ? '만' : '천';
+  let divisor = unit === '만' ? 10000 : 1000;
+  let rounded = Math.round((count / divisor) * 10) / 10;
+
+  // 반올림으로 "10.0천"처럼 자릿수가 넘어가면 "1.0만"으로 올린다.
+  if (unit === '천' && rounded >= 10) {
+    unit = '만';
+    rounded = Math.round((count / 10000) * 10) / 10;
+  }
+
+  return (Number.isInteger(rounded) ? rounded : rounded.toFixed(1)) + unit;
+}
+
 function renderMap(data) {
   cellLayer.clearLayers();
   markerLayer.clearLayers();
 
   if (data.mode === 'cluster') {
     for (const cell of data.cells) {
-      L.circleMarker([cell.lat, cell.lon], {
+      const circle = L.circleMarker([cell.lat, cell.lon], {
         radius: cellRadius(cell.count),
         color: '#1c5ed6',
         weight: 1,
         fillColor: '#3b82f6',
         fillOpacity: 0.55
       })
-        .bindTooltip(cell.count.toLocaleString(), {
+        .bindTooltip(formatCellCount(cell.count), {
           permanent: true, direction: 'center', className: 'cell-label'
         })
         .on('click', () => map.setView([cell.lat, cell.lon], Math.min(19, map.getZoom() + 2)))
         .addTo(cellLayer);
+      // 정확한 건수는 네이티브 title 속성으로 남겨 둔다 (마우스 오버 시 브라우저 기본 툴팁, 별도 상호작용 없음).
+      const el = circle.getElement();
+      if (el) el.setAttribute('title', cell.count.toLocaleString());
     }
     return;
   }
