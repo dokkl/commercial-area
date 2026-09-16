@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>상권정보 지도</title>
+  <link rel="stylesheet" href="/webjars/leaflet/dist/leaflet.css">
+  <link rel="stylesheet" href="/webjars/leaflet.markercluster/dist/MarkerCluster.css">
+  <link rel="stylesheet" href="/webjars/leaflet.markercluster/dist/MarkerCluster.Default.css">
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>상권정보 지도</h1>
+    <div class="total">총 <strong id="total">0</strong>건</div>
+  </header>
+
+  <main class="layout">
+    <aside class="panel" id="panel">
+      <!-- Task 12에서 필터 컨트롤이 들어온다 -->
+    </aside>
+
+    <section class="content">
+      <div id="map"></div>
+      <div class="list" id="list">
+        <!-- Task 12에서 결과 목록이 들어온다 -->
+      </div>
+    </section>
+  </main>
+
+  <script src="/webjars/leaflet/dist/leaflet.js"></script>
+  <script src="/webjars/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>
