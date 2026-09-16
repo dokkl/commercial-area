@@ -1,15 +1,14 @@
 package com.example.commercialarea.store;
 
-import com.example.commercialarea.config.GlobalExceptionHandler;
 import com.example.commercialarea.support.MySqlTestContainer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -18,27 +17,14 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/**
- * Spring Boot 4.0.3 moved MockMvc test auto-configuration (@AutoConfigureMockMvc) out of
- * spring-boot-test-autoconfigure into a new spring-boot-starter-webmvc-test module, which
- * build.gradle.kts does not declare (and per task constraints, must not gain a new dependency
- * for this task). So MockMvc is built by hand here against the real, container-managed
- * MapController and GlobalExceptionHandler beans. Everything else — real StoreService,
- * real StoreRepository, real MySQL testcontainer — is identical to what @AutoConfigureMockMvc
- * would have wired; only DispatcherServlet's own auto-registration is replaced by
- * MockMvcBuilders.standaloneSetup, which drives the same argument-resolution and
- * exception-handling machinery.
- */
 @SpringBootTest(properties = "app.import.enabled=false")
+@AutoConfigureMockMvc
 @Import(MySqlTestContainer.class)
 class MapApiTest {
 
-    @Autowired MapController controller;
-    @Autowired GlobalExceptionHandler exceptionHandler;
+    @Autowired MockMvc mvc;
     @Autowired StoreRepository repository;
     @Autowired JdbcClient jdbc;
-
-    private MockMvc mvc;
 
     private void seed(int n) {
         List<Store> batch = new ArrayList<>(n);
@@ -50,13 +36,6 @@ class MapApiTest {
                     127.0 + (i % 100) * 0.0001, 37.5 + (i / 100) * 0.0001));
         }
         repository.insertBatch(batch);
-    }
-
-    @BeforeEach
-    void setUpMvc() {
-        mvc = MockMvcBuilders.standaloneSetup(controller)
-                .setControllerAdvice(exceptionHandler)
-                .build();
     }
 
     @BeforeEach
