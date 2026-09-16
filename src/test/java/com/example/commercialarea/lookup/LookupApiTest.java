@@ -119,4 +119,16 @@ class LookupApiTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].minLat").doesNotExist());
     }
+
+    /**
+     * 매핑되지 않은 URL은 NoResourceFoundException을 던지는데, 이를 캐치올이 잡으면
+     * 500/INTERNAL_ERROR로 잘못 분류된다. 클라이언트 오타 하나가 서버 오류 경보로
+     * 둔갑하지 않도록 404/NOT_FOUND로 응답하는지 확인한다.
+     */
+    @Test
+    void 매핑되지_않은_경로는_404_NOT_FOUND이다() throws Exception {
+        mvc.perform(get("/api/does-not-exist"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error").value("NOT_FOUND"));
+    }
 }

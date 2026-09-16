@@ -8,6 +8,7 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.Set;
 
@@ -38,6 +39,17 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException e) {
         return ResponseEntity.badRequest()
                 .body(new ErrorResponse("INVALID_PARAMETER", "파라미터 형식이 올바르지 않습니다: " + e.getName()));
+    }
+
+    /**
+     * 매핑되지 않은 URL(오타 등)은 정적 리소스 핸들러가 NoResourceFoundException을 던진다.
+     * 이는 클라이언트 입력 오류이지 서버 오류가 아니므로, 캐치올에 잡혀 500/INTERNAL_ERROR로
+     * 잘못 분류되고 불필요하게 ERROR 로그가 남지 않도록 별도로 분리해 404로 반환한다.
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ErrorResponse> handleNoResourceFound(NoResourceFoundException e) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ErrorResponse("NOT_FOUND", "요청한 경로를 찾을 수 없습니다: " + e.getResourcePath()));
     }
 
     @ExceptionHandler(Exception.class)

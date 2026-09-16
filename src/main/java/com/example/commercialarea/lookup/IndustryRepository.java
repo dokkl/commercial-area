@@ -21,7 +21,7 @@ public class IndustryRepository {
                         SELECT large_code AS code, large_name AS name, SUM(store_count) AS cnt
                         FROM industry
                         GROUP BY large_code, large_name
-                        ORDER BY cnt DESC
+                        ORDER BY cnt DESC, name
                         """)
                 .query(IndustryRepository::toItem)
                 .list();
@@ -33,7 +33,7 @@ public class IndustryRepository {
                         FROM industry
                         WHERE large_code = :large
                         GROUP BY medium_code, medium_name
-                        ORDER BY cnt DESC
+                        ORDER BY cnt DESC, name
                         """)
                 .param("large", largeCode)
                 .query(IndustryRepository::toItem)
@@ -46,7 +46,7 @@ public class IndustryRepository {
                         FROM industry
                         WHERE medium_code = :medium
                         GROUP BY small_code, small_name
-                        ORDER BY cnt DESC
+                        ORDER BY cnt DESC, name
                         """)
                 .param("medium", mediumCode)
                 .query(IndustryRepository::toItem)
