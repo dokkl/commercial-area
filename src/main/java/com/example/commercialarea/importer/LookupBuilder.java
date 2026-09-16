@@ -49,4 +49,14 @@ public class LookupBuilder {
 
         log.info("룩업 테이블 재생성 완료 ({}ms)", System.currentTimeMillis() - started);
     }
+
+    /**
+     * 룩업 테이블이 채워져 있는지 확인한다. rebuild()는 적재가 모든 대상 파일을 끝까지
+     * 처리한 뒤에만 호출되므로, region이 비어 있지 않다는 것은 이전 적재가 완주했다는
+     * 신호로 쓸 수 있다. store에 행이 있는데 이 값이 false라면 적재가 중단된 것이다.
+     */
+    public boolean isPopulated() {
+        long count = jdbc.sql("SELECT COUNT(*) FROM region").query(Long.class).single();
+        return count > 0;
+    }
 }

@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -47,10 +48,21 @@ public class StoreImportRunner implements ApplicationRunner {
             log.info("CSV 적재 비활성화 (app.import.enabled=false)");
             return;
         }
-        if (repository.countAll() > 0) {
+
+        boolean hasStoreRows = repository.countAll() > 0;
+        boolean lookupsReady = lookupBuilder.isPopulated();
+        if (hasStoreRows && lookupsReady) {
             log.info("store 테이블에 데이터가 이미 있어 적재를 건너뛴다");
             return;
         }
+        if (hasStoreRows) {
+            // region/industry가 비어 있다는 것은 rebuild()가 끝까지 실행되지 못했다는 뜻이다
+            // (이전 적재가 파일 처리 도중 중단됨). INSERT IGNORE 덕분에 이미 적재된 행을
+            // 다시 시도해도 안전하므로(design.md §5 "CSV 적재" — "중단된 적재를 이어서
+            // 진행할 수 있다") 처음부터 이어서 적재한다.
+            log.warn("이전 적재가 끝까지 완료되지 않은 것으로 보인다(룩업 테이블이 비어 있음). 적재를 이어서 진행한다");
+        }
+
         ImportSummary summary = importFrom(Path.of(settings.dir()));
         if (summary.succeeded() > 0) {
             lookupBuilder.rebuild();
@@ -111,14 +123,14 @@ public class StoreImportRunner implements ApplicationRunner {
                     continue;
                 }
                 if (buffer.size() >= settings.batchSize()) {
-                    succeeded += flush(buffer);
+                    succeeded += flush(buffer, file, succeeded);
                     if (succeeded % PROGRESS_INTERVAL < settings.batchSize()) {
                         log.info("  {} 진행: {}행 ({}초)", file.getFileName(), succeeded,
                                 (System.currentTimeMillis() - started) / 1000);
                     }
                 }
             }
-            succeeded += flush(buffer);
+            succeeded += flush(buffer, file, succeeded);
         } catch (IOException e) {
             throw new IllegalStateException("CSV 읽기 실패: " + file, e);
         }
@@ -133,12 +145,23 @@ public class StoreImportRunner implements ApplicationRunner {
         return summary;
     }
 
-    private int flush(List<Store> buffer) {
+    /**
+     * DB 적재 실패(데드락, 연결 끊김, 디스크 풀 등)가 122만 행 적재 도중 발생하면
+     * 원인 파악을 위해 파일명과 그때까지 성공한 행 수를 남기고, 원래 예외는 cause로 보존한다.
+     */
+    private int flush(List<Store> buffer, Path file, long succeededSoFar) {
         if (buffer.isEmpty()) {
             return 0;
         }
-        int n = repository.insertBatch(buffer);
-        buffer.clear();
-        return n;
+        try {
+            int n = repository.insertBatch(buffer);
+            buffer.clear();
+            return n;
+        } catch (DataAccessException e) {
+            throw new IllegalStateException(
+                    "DB 적재 실패: %s (성공 %d행까지 처리한 상태에서 실패)"
+                            .formatted(file.getFileName(), succeededSoFar),
+                    e);
+        }
     }
 }
