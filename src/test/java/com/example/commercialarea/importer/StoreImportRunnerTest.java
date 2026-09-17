@@ -47,7 +47,7 @@ class StoreImportRunnerTest {
 
         // 픽스처 6행 중 좌표 없는 1행은 실패한다.
         assertThat(summary.failed()).isEqualTo(1);
-        assertThat(summary.succeeded()).isEqualTo(5);
+        assertThat(summary.processed()).isEqualTo(5);
         assertThat(storeRepository.countAll()).isEqualTo(5);
     }
 
@@ -57,7 +57,7 @@ class StoreImportRunnerTest {
 
         ImportSummary summary = runner.importFrom(csvDir);
 
-        assertThat(summary.succeeded()).isZero();
+        assertThat(summary.processed()).isZero();
         assertThat(storeRepository.countAll()).isZero();
     }
 

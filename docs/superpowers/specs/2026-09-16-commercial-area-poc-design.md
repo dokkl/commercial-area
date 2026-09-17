@@ -402,6 +402,7 @@ GET /api/industries/small?medium=I201   → [{ code, name, count }]
 | 상황 | 상태 | 코드 |
 |---|:---:|---|
 | bbox 파라미터 누락 | 400 | `MISSING_BBOX` |
+| bbox가 아닌 필수 파라미터 누락 (예: `/api/regions/sgg`에 `sido` 없이 요청) | 400 | `MISSING_PARAMETER` |
 | `minLat > maxLat` 또는 `minLon > maxLon` | 400 | `INVALID_BBOX` |
 | `zoom`이 0~22 범위 밖 | 400 | `INVALID_ZOOM` |
 | 파라미터 타입 불일치 (예: `zoom=abc`) | 400 | `INVALID_PARAMETER` |
@@ -409,16 +410,22 @@ GET /api/industries/small?medium=I201   → [{ code, name, count }]
 | 매핑되지 않은 경로 | 404 | `NOT_FOUND` |
 | 그 외 서버 오류 | 500 | `INTERNAL_ERROR` |
 
-`INVALID_PARAMETER`와 `NOT_FOUND`는 구현 중 추가됐다. 전역 캐치올(`Exception.class`)이
+`MISSING_PARAMETER`, `INVALID_PARAMETER`, `NOT_FOUND`는 구현 중 추가됐다.
+`MissingServletRequestParameterException`은 bbox 4개(`minLat`/`maxLat`/`minLon`/`maxLon`)
+파라미터명이면 `MISSING_BBOX`, 그 외(예: `/api/regions/sgg`의 `sido`)면 `MISSING_PARAMETER`로
+나눠 응답한다. 전역 캐치올(`Exception.class`)은 이와 별개로
 `MethodArgumentTypeMismatchException`(예: `zoom=abc`)과 `NoResourceFoundException`
 (매핑되지 않은 경로)까지 붙잡아 500/`INTERNAL_ERROR`로 잘못 분류하고 ERROR 레벨로
-로깅하고 있었다. 둘 다 클라이언트 입력 오류이지 서버 오류가 아니므로 전용 핸들러로
-분리해 각각 400/404로 반환하고 로그도 남기지 않도록 했다 (`GlobalExceptionHandler`).
+로깅하고 있었다. 셋 다 클라이언트 입력 오류이지 서버 오류가 아니므로 전용 핸들러로
+분리해 각각 400/400/404로 반환하고 로그도 남기지 않도록 했다 (`GlobalExceptionHandler`).
 
 ## 7. 화면
 
-단일 페이지. Thymeleaf가 껍데기와 초기 드롭다운 데이터(시도 목록, 업종 대분류)를
-서버사이드 렌더링하고, 이후 상호작용은 `fetch()`로 위 API를 호출한다.
+단일 페이지. Thymeleaf는 정적인 껍데기(레이아웃, 빈 `<select>` 등)만 렌더링하고,
+시도 목록·업종 대분류를 포함한 드롭다운 데이터는 초기 데이터든 이후 상호작용이든 전부
+`app.js`의 `init()`이 위 API를 `fetch()`로 호출해 채운다 — 서버사이드 렌더링과 클라이언트
+호출을 나누기보다 데이터 경로를 하나로 통일한 것이다. `index.html`이 Thymeleaf 네임스페이스를
+선언하지만 `th:` 속성은 쓰지 않는 것은 그래서다.
 
 ```
 ┌──────────────────────────────────────────────────┐

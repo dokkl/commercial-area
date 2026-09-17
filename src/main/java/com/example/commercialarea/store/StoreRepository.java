@@ -36,6 +36,13 @@ public class StoreRepository {
      * JdbcClient는 배치 API를 제공하지 않으므로, 122만 행 적재처럼 배치가 필요한 곳에서는
      * 의도적으로 JdbcTemplate.batchUpdate를 사용한다. 이 메서드는 내부적으로 청크를 나누지
      * 않으므로 호출하는 쪽에서 미리 적절한 크기로 나눠 전달해야 한다.
+     *
+     * 반환값은 처리를 시도한 행 수(stores.size())이지 실제로 저장된 행 수가 아니다.
+     * INSERT IGNORE로 무시된 중복 행도 그대로 포함되며, rewriteBatchedStatements=true
+     * (docker-compose.yml/application.yml/MySqlTestContainer 참고) 때문에 MySQL 드라이버가
+     * 배치를 다중행 INSERT로 재작성해 요소별로 Statement.SUCCESS_NO_INFO를 반환하므로
+     * 애초에 행 단위 저장 성공 여부를 알 수 없다. 실제 저장 건수를 얻어내려 하지 말 것 —
+     * 호출하는 쪽은 이 값을 "저장 성공"이 아니라 "처리 시도"로만 다뤄야 한다.
      */
     public int insertBatch(List<Store> stores) {
         jdbcTemplate.batchUpdate(INSERT_SQL, stores, stores.size(), StoreRepository::bind);

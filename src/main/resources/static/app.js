@@ -46,9 +46,12 @@ function cellRadius(count) {
 }
 
 /**
- * 32px 원 안에 들어가도록 건수를 간략 표기한다.
+ * 32px 원 안에 들어가도록 건수를 최대 4자로 간략 표기한다.
  * 1,000 미만은 그대로, 1,000 이상은 "N.N천", 10,000 이상은 "N.N만" — 소수점 첫째 자리,
  * 정수면 ".0"을 뗀다. 예: 847 -> "847", 1,562 -> "1.6천", 16,799 -> "1.7만".
+ * 만 단위 정수부가 두 자리 이상이 되면("55.4만" = 5자) 소수점을 버려 4자를 유지한다
+ * (예: 554,000 -> "55만"). 만 위의 단위는 없지만 이 서비스의 최대 건수(122만여 행)
+ * 규모에서는 이 규칙만으로 항상 4자 이내가 된다.
  */
 function formatCellCount(count) {
   if (count < 1000) return String(count);
@@ -61,6 +64,12 @@ function formatCellCount(count) {
   if (unit === '천' && rounded >= 10) {
     unit = '만';
     rounded = Math.round((count / 10000) * 10) / 10;
+  }
+
+  // 만 단위 정수부가 두 자리 이상이면("10만" 이상) 소수점 자리까지 표기할 경우 5자가
+  // 되어 32px 원을 다시 넘친다. 이 구간부터는 소수점을 버리고 정수로만 표기한다.
+  if (unit === '만' && rounded >= 10) {
+    rounded = Math.round(count / 10000);
   }
 
   return (Number.isInteger(rounded) ? rounded : rounded.toFixed(1)) + unit;

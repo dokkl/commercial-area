@@ -63,8 +63,11 @@ public class StoreImportRunner implements ApplicationRunner {
             log.warn("이전 적재가 끝까지 완료되지 않은 것으로 보인다(룩업 테이블이 비어 있음). 적재를 이어서 진행한다");
         }
 
-        ImportSummary summary = importFrom(Path.of(settings.dir()));
-        if (summary.succeeded() > 0) {
+        importFrom(Path.of(settings.dir()));
+        // rebuild() 여부는 이번 실행의 삽입 건수(processed)가 아니라 store에 실제로 행이
+        // 있는지로 결정한다. 재개 경로에서는 모든 행이 INSERT IGNORE로 무시되어 processed가
+        // 0에 가까울 수 있지만, 그래도 store에는 이미 채워야 할 룩업 대상 행이 있기 때문이다.
+        if (repository.countAll() > 0) {
             lookupBuilder.rebuild();
         }
     }
@@ -76,7 +79,7 @@ public class StoreImportRunner implements ApplicationRunner {
         }
 
         long started = System.currentTimeMillis();
-        long succeeded = 0;
+        long processed = 0;
         long failed = 0;
 
         try (Stream<Path> files = Files.list(dir)) {
@@ -89,23 +92,23 @@ public class StoreImportRunner implements ApplicationRunner {
             log.info("적재 대상 파일 {}개", targets.size());
             for (Path file : targets) {
                 ImportSummary one = importFile(file);
-                succeeded += one.succeeded();
+                processed += one.processed();
                 failed += one.failed();
             }
         } catch (IOException e) {
             throw new IllegalStateException("CSV 디렉토리 탐색 실패: " + dir, e);
         }
 
-        ImportSummary total = new ImportSummary(succeeded, failed);
-        log.info("전체 적재 완료: 성공 {} / 실패 {} ({}초)",
-                succeeded, failed, (System.currentTimeMillis() - started) / 1000);
+        ImportSummary total = new ImportSummary(processed, failed);
+        log.info("전체 적재 완료: 처리 {} / 실패 {} ({}초)",
+                processed, failed, (System.currentTimeMillis() - started) / 1000);
         return total;
     }
 
     private ImportSummary importFile(Path file) {
         log.info("적재 시작: {}", file.getFileName());
         long started = System.currentTimeMillis();
-        long succeeded = 0;
+        long processed = 0;
         long failed = 0;
         List<Store> buffer = new ArrayList<>(settings.batchSize());
 
@@ -123,33 +126,33 @@ public class StoreImportRunner implements ApplicationRunner {
                     continue;
                 }
                 if (buffer.size() >= settings.batchSize()) {
-                    succeeded += flush(buffer, file, succeeded);
-                    if (succeeded % PROGRESS_INTERVAL < settings.batchSize()) {
-                        log.info("  {} 진행: {}행 ({}초)", file.getFileName(), succeeded,
+                    processed += flush(buffer, file, processed);
+                    if (processed % PROGRESS_INTERVAL < settings.batchSize()) {
+                        log.info("  {} 진행: {}행 ({}초)", file.getFileName(), processed,
                                 (System.currentTimeMillis() - started) / 1000);
                     }
                 }
             }
-            succeeded += flush(buffer, file, succeeded);
+            processed += flush(buffer, file, processed);
         } catch (IOException e) {
             throw new IllegalStateException("CSV 읽기 실패: " + file, e);
         }
 
-        ImportSummary summary = new ImportSummary(succeeded, failed);
+        ImportSummary summary = new ImportSummary(processed, failed);
         if (summary.failureRate() > 0.01) {
             log.error("{} 실패율 {}%가 1%를 초과한다. CSV 형식이 바뀌었을 수 있다.",
                     file.getFileName(), Math.round(summary.failureRate() * 1000) / 10.0);
         }
-        log.info("적재 완료: {} — 성공 {} / 실패 {} ({}초)", file.getFileName(),
-                succeeded, failed, (System.currentTimeMillis() - started) / 1000);
+        log.info("적재 완료: {} — 처리 {} / 실패 {} ({}초)", file.getFileName(),
+                processed, failed, (System.currentTimeMillis() - started) / 1000);
         return summary;
     }
 
     /**
      * DB 적재 실패(데드락, 연결 끊김, 디스크 풀 등)가 122만 행 적재 도중 발생하면
-     * 원인 파악을 위해 파일명과 그때까지 성공한 행 수를 남기고, 원래 예외는 cause로 보존한다.
+     * 원인 파악을 위해 파일명과 그때까지 처리한 행 수를 남기고, 원래 예외는 cause로 보존한다.
      */
-    private int flush(List<Store> buffer, Path file, long succeededSoFar) {
+    private int flush(List<Store> buffer, Path file, long processedSoFar) {
         if (buffer.isEmpty()) {
             return 0;
         }
@@ -159,8 +162,8 @@ public class StoreImportRunner implements ApplicationRunner {
             return n;
         } catch (DataAccessException e) {
             throw new IllegalStateException(
-                    "DB 적재 실패: %s (성공 %d행까지 처리한 상태에서 실패)"
-                            .formatted(file.getFileName(), succeededSoFar),
+                    "DB 적재 실패: %s (%d행까지 처리한 상태에서 실패)"
+                            .formatted(file.getFileName(), processedSoFar),
                     e);
         }
     }

@@ -54,6 +54,30 @@ class StoreImportRunnerUnitTest {
         verify(lookupBuilder, times(1)).rebuild();
     }
 
+    /**
+     * 재개 경로에서는 INSERT IGNORE 때문에 이번 실행이 실제로 저장한 행 수가 0일 수 있다
+     * (모든 행이 이미 store에 있었으므로). insertBatch는 오늘 "시도 건수"를 돌려주지만,
+     * rebuild() 여부가 그 값에 기대면 안 된다 — 나중에 누군가 insertBatch를 "정확한 저장
+     * 건수"를 돌려주도록 고치면 이 시나리오에서 processed==0이 되어 rebuild()가 영영
+     * 호출되지 않고 룩업 테이블이 영구히 비게 된다. 그래서 게이트는 processed가 아니라
+     * store에 행이 있는지(countAll() > 0)로 걸어야 한다.
+     */
+    @Test
+    void insertBatch가_저장_대신_시도_건수만_돌려줘도_재개_후_룩업을_재생성한다() throws Exception {
+        writeFixture("소상공인_서울_202606.csv");
+        StoreRepository repository = mock(StoreRepository.class);
+        LookupBuilder lookupBuilder = mock(LookupBuilder.class);
+        when(repository.countAll()).thenReturn(5L); // store에 이미 5행이 있다(이전 적재가 완주함)
+        when(lookupBuilder.isPopulated()).thenReturn(false); // 그러나 룩업 테이블은 비어 있다 → 재개 경로
+        // 이번 재개 실행에서는 모든 행이 INSERT IGNORE로 무시되어 실제 저장 건수는 0이다.
+        when(repository.insertBatch(anyList())).thenReturn(0);
+
+        StoreImportRunner runner = new StoreImportRunner(props(), repository, lookupBuilder);
+        runner.run(new DefaultApplicationArguments());
+
+        verify(lookupBuilder, times(1)).rebuild();
+    }
+
     @Test
     void store에_행이_있고_룩업도_채워져_있으면_적재를_건너뛴다() throws Exception {
         writeFixture("소상공인_서울_202606.csv");
@@ -83,7 +107,7 @@ class StoreImportRunnerUnitTest {
         assertThatThrownBy(() -> runner.importFrom(csvDir))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("소상공인_서울_202606.csv")
-                .hasMessageContaining("성공 0행까지 처리한 상태에서 실패")
+                .hasMessageContaining("0행까지 처리한 상태에서 실패")
                 .hasCause(dbFailure);
     }
 }

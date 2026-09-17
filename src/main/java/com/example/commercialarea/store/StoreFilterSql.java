@@ -28,9 +28,23 @@ final class StoreFilterSql {
 
         if (hasText(q.q())) {
             // idx_name(store_name(20)) 을 쓰려면 앞부분 일치여야 한다.
-            sql.append(" AND store_name LIKE :namePrefix");
-            params.put("namePrefix", q.q().trim() + "%");
+            // 사용자가 입력한 %, _, \ 는 LIKE 와일드카드로 해석되면 안 되므로 이스케이프하고,
+            // ESCAPE 절로 이스케이프 문자를 명시해 동작을 명확히 한다.
+            sql.append(" AND store_name LIKE :namePrefix ESCAPE '\\\\'");
+            params.put("namePrefix", escapeLikeWildcards(q.q().trim()) + "%");
         }
+    }
+
+    /**
+     * LIKE 패턴에서 특별한 의미를 갖는 문자(%, _)와 이스케이프 문자 자체(\)를 리터럴로
+     * 취급되도록 이스케이프한다. \를 먼저 치환해야 %/_ 이스케이프로 새로 추가한 \까지
+     * 다시 이스케이프되는 것을 막을 수 있다.
+     */
+    private static String escapeLikeWildcards(String raw) {
+        return raw
+                .replace("\\", "\\\\")
+                .replace("%", "\\%")
+                .replace("_", "\\_");
     }
 
     private static void eq(StringBuilder sql, Map<String, Object> params,

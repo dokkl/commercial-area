@@ -125,4 +125,19 @@ class StoreAggregateTest {
         assertThat(repository.aggregate(middle, 0.1).stream().mapToLong(GridCell::count).sum())
                 .isZero();       // 앞부분 일치만 지원한다
     }
+
+    @Test
+    void 상호명_검색어의_퍼센트_기호는_와일드카드로_해석되지_않는다() {
+        // 리터럴 '%'로 시작하는 상호를 하나 더 심는다. 이스케이프하지 않으면 검색어 "%"가
+        // 패턴 "%%"가 되어 (앞뒤 어떤 문자든 매치) bbox 안의 모든 상호(S1~S4)와 일치해버린다.
+        repository.insertBatch(List.of(
+                store("S6", 37.5003, 127.0003, "11680", "강남구", "I2", "음식", "%특가")
+        ));
+
+        MapQuery percent = new MapQuery(37.0, 38.0, 126.0, 128.0, 11,
+                null, null, null, null, null, null, "%");
+
+        assertThat(repository.aggregate(percent, 0.1).stream().mapToLong(GridCell::count).sum())
+                .isEqualTo(1);   // "%특가"만 일치해야 한다
+    }
 }
