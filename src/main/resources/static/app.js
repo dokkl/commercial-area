@@ -128,6 +128,12 @@ function escapeHtml(value) {
 // (좁은 bbox는 ~150ms, 전국 bbox는 ~900ms까지 걸려 응답이 요청 순서대로 돌아오지 않을 수 있다.)
 let refreshSeq = 0;
 
+// 팝업이 열려 있는 동안엔 renderMap()의 clearLayers()가 그 팝업이 달린 마커까지 지워버린다.
+// map.on('popupopen'/'popupclose', ...)에서 갱신한다(아래쪽 초기화 절 참고).
+// moveend 시점에 스케줄링을 막는 것과 별개로, 이미 날아간 fetch가 뒤늦게 돌아왔을 때도
+// 아래 refresh()의 렌더링 직전에 다시 한번 확인해야 한다 — 요청이 나간 "뒤" 팝업이 열릴 수도 있다.
+let popupOpen = false;
+
 // Task 12에서 목록 갱신을 합치기 위해 재할당하므로 let으로 선언한다.
 let refresh = async function () {
   const seq = ++refreshSeq;
@@ -135,6 +141,7 @@ let refresh = async function () {
   try {
     const data = await fetch('/api/map?' + params).then(r => r.json());
     if (seq !== refreshSeq) return; // 더 최신 refresh가 이미 시작됐다 — 이 응답은 버린다.
+    if (popupOpen) return; // 팝업이 열려 있다 — 지금 렌더링하면 그 팝업이 달린 마커가 지워진다. popupclose가 따라잡는다.
     if (data.error) {
       console.warn('지도 조회 실패', data);
       return;
@@ -331,13 +338,14 @@ refresh = async function () {
   await Promise.all([refreshMapOnly(), refreshList()]);
 };
 
-// 팝업이 열려 있는 동안 moveend로 인한 갱신을 미루는 플래그.
+// popupOpen 플래그(위쪽 refreshSeq 옆에 선언)를 여기서 갱신한다.
 // openDetail()이 연 팝업이 화면 가장자리에 가까우면 Leaflet의 기본 popup autoPan이
 // 지도를 살짝 옮긴다 → moveend → scheduleRefresh → 300ms 뒤 refresh() →
 // renderMap()의 markerLayer.clearLayers()가 방금 연 팝업이 달린 마커까지 지워버린다.
+// (또는 반대로, moveend가 먼저 발생해 fetch가 이미 날아간 뒤에 팝업이 열릴 수도 있다 —
+// 그 경우는 refresh() 안의 렌더링 직전 popupOpen 확인이 막아준다.)
 // autoPan은 그대로 두고(끄면 가장자리 팝업이 잘린다), 팝업이 열려 있는 동안만
 // 갱신을 미루고 닫힐 때 한 번 따라잡는다.
-let popupOpen = false;
 map.on('popupopen', () => {
   popupOpen = true;
   clearTimeout(refreshTimer); // 이미 예약된 갱신이 있다면 취소한다.
