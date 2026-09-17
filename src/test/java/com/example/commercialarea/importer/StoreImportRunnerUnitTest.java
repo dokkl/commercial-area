@@ -94,7 +94,7 @@ class StoreImportRunnerUnitTest {
     }
 
     @Test
-    void DB_적재_실패시_파일명과_성공행수를_포함한_예외로_감싸_원인을_보존한다() throws Exception {
+    void DB_적재_실패시_파일명과_처리행수를_포함한_예외로_감싸_원인을_보존한다() throws Exception {
         writeFixture("소상공인_서울_202606.csv");
         StoreRepository repository = mock(StoreRepository.class);
         LookupBuilder lookupBuilder = mock(LookupBuilder.class);
