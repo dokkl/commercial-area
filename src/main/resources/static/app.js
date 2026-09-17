@@ -153,5 +153,212 @@ function scheduleRefresh() {
   refreshTimer = setTimeout(refresh, 300);
 }
 
-map.on('moveend', scheduleRefresh);
-refresh();
+/* ---------- 필터 드롭다운 ---------- */
+
+const el = id => document.getElementById(id);
+
+const CASCADE = [
+  { id: 'sido',   child: 'sgg',    url: () => '/api/regions/sido' },
+  { id: 'sgg',    child: 'dong',   url: v => '/api/regions/sgg?sido=' + encodeURIComponent(v) },
+  { id: 'dong',   child: null,     url: v => '/api/regions/dong?sgg=' + encodeURIComponent(v) },
+  { id: 'large',  child: 'medium', url: () => '/api/industries/large' },
+  { id: 'medium', child: 'small',  url: v => '/api/industries/medium?large=' + encodeURIComponent(v) },
+  { id: 'small',  child: null,     url: v => '/api/industries/small?medium=' + encodeURIComponent(v) }
+];
+
+const PLACEHOLDER = {
+  sido: '시도 전체', sgg: '시군구 전체', dong: '행정동 전체',
+  large: '대분류 전체', medium: '중분류 전체', small: '소분류 전체'
+};
+
+function resetSelect(id) {
+  const select = el(id);
+  select.innerHTML = `<option value="">${PLACEHOLDER[id]}</option>`;
+  select.disabled = true;
+  filters[id] = '';
+}
+
+async function fillSelect(id, url) {
+  const select = el(id);
+  try {
+    const items = await fetch(url).then(r => r.json());
+    select.innerHTML = `<option value="">${PLACEHOLDER[id]}</option>` + items.map(item => {
+      const bbox = item.minLat != null
+        ? ` data-bbox="${item.minLat},${item.minLon},${item.maxLat},${item.maxLon}"`
+        : '';
+      return `<option value="${escapeHtml(item.code)}"${bbox}>`
+           + `${escapeHtml(item.name)} (${item.count.toLocaleString()})</option>`;
+    }).join('');
+    select.disabled = items.length === 0;
+  } catch (e) {
+    console.error('옵션 로딩 실패: ' + id, e);
+    select.disabled = true;
+  }
+}
+
+function fitToSelected(select) {
+  const bbox = select.selectedOptions[0]?.dataset.bbox;
+  if (!bbox) return;
+  const [minLat, minLon, maxLat, maxLon] = bbox.split(',').map(Number);
+  // 한 점뿐인 구역은 bounds가 0 넓이라 지도가 최대 줌으로 튄다. 약간 넓혀준다.
+  const pad = 0.002;
+  map.fitBounds([[minLat - pad, minLon - pad], [maxLat + pad, maxLon + pad]]);
+}
+
+for (const level of CASCADE) {
+  el(level.id).addEventListener('change', async event => {
+    const value = event.target.value;
+    filters[level.id] = value;
+
+    // 하위 단계를 모두 초기화한다.
+    let child = level.child;
+    while (child) {
+      resetSelect(child);
+      child = CASCADE.find(l => l.id === child)?.child;
+    }
+
+    if (value && level.child) {
+      const childLevel = CASCADE.find(l => l.id === level.child);
+      await fillSelect(childLevel.id, childLevel.url(value));
+    }
+
+    page = 0;
+    // 지역을 고르면 지도를 그쪽으로 옮긴다. moveend가 refresh를 부른다.
+    if (value && event.target.selectedOptions[0]?.dataset.bbox) {
+      fitToSelected(event.target);
+    } else {
+      refresh();
+    }
+  });
+}
+
+let searchTimer;
+el('q').addEventListener('input', event => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    filters.q = event.target.value.trim();
+    page = 0;
+    refresh();
+  }, 300);
+});
+
+el('reset').addEventListener('click', () => {
+  for (const level of CASCADE) {
+    if (level.id === 'sido' || level.id === 'large') {
+      el(level.id).value = '';
+      filters[level.id] = '';
+    } else {
+      resetSelect(level.id);
+    }
+  }
+  el('q').value = '';
+  filters.q = '';
+  page = 0;
+  map.setView(SEOUL, 11);   // moveend가 refresh를 부른다
+});
+
+/* ---------- 결과 목록 ---------- */
+
+const PAGE_SIZE = 20;
+let page = 0;
+let totalPages = 0;
+
+function renderList(data) {
+  const body = el('list-body');
+  totalPages = Math.ceil(data.total / PAGE_SIZE);
+
+  if (data.items.length === 0) {
+    body.innerHTML = '<tr class="empty"><td colspan="3">조건에 맞는 상가가 없습니다.</td></tr>';
+  } else {
+    body.innerHTML = data.items.map(item => `
+      <tr data-id="${escapeHtml(item.id)}" data-lat="${item.lat}" data-lon="${item.lon}">
+        <td>${escapeHtml(item.name)}${item.branchName ? ' ' + escapeHtml(item.branchName) : ''}</td>
+        <td>${escapeHtml(item.smallName)}</td>
+        <td class="addr">${escapeHtml(item.roadAddress || '')}</td>
+      </tr>
+    `).join('');
+  }
+
+  el('page-info').textContent = totalPages === 0 ? '0 / 0' : `${page + 1} / ${totalPages}`;
+  el('prev').disabled = page <= 0;
+  el('next').disabled = page >= totalPages - 1;
+}
+
+el('list-body').addEventListener('click', event => {
+  const row = event.target.closest('tr[data-id]');
+  if (!row) return;
+  const lat = Number(row.dataset.lat);
+  const lon = Number(row.dataset.lon);
+  map.setView([lat, lon], Math.max(map.getZoom(), 17));
+  const marker = L.marker([lat, lon]).addTo(map);
+  openDetail(marker, row.dataset.id);
+  marker.on('popupclose', () => map.removeLayer(marker));
+});
+
+el('prev').addEventListener('click', () => { if (page > 0) { page--; refreshList(); } });
+el('next').addEventListener('click', () => { if (page < totalPages - 1) { page++; refreshList(); } });
+
+// 목록 응답도 지도 응답과 마찬가지로 순서가 뒤바뀔 수 있다 (필터를 빠르게 바꾸는 경우 등).
+// 지도의 refreshSeq와는 별개의 순번을 쓴다 — 두 요청은 서로 다른 시점에 발생하므로
+// 하나의 카운터를 공유하면 유효한 응답까지 오탐으로 버리게 된다.
+let listSeq = 0;
+
+async function refreshList() {
+  const seq = ++listSeq;
+  const params = currentParams();
+  params.set('page', page);
+  params.set('size', PAGE_SIZE);
+  try {
+    const data = await fetch('/api/stores?' + params).then(r => r.json());
+    if (seq !== listSeq) return; // 더 최신 refreshList가 이미 시작됐다 — 이 응답은 버린다.
+    if (data.error) {
+      console.warn('목록 조회 실패', data);
+      return;
+    }
+    renderList(data);
+  } catch (e) {
+    if (seq !== listSeq) return;
+    console.error('목록 조회 실패', e);
+  }
+}
+
+/* ---------- 초기화 ---------- */
+
+// Task 11의 refresh()를 감싸 목록까지 함께 갱신한다.
+// refresh는 위에서 이미 let으로 선언되어 있으므로 재할당이 그대로 동작한다.
+const refreshMapOnly = refresh;
+refresh = async function () {
+  await Promise.all([refreshMapOnly(), refreshList()]);
+};
+
+// 팝업이 열려 있는 동안 moveend로 인한 갱신을 미루는 플래그.
+// openDetail()이 연 팝업이 화면 가장자리에 가까우면 Leaflet의 기본 popup autoPan이
+// 지도를 살짝 옮긴다 → moveend → scheduleRefresh → 300ms 뒤 refresh() →
+// renderMap()의 markerLayer.clearLayers()가 방금 연 팝업이 달린 마커까지 지워버린다.
+// autoPan은 그대로 두고(끄면 가장자리 팝업이 잘린다), 팝업이 열려 있는 동안만
+// 갱신을 미루고 닫힐 때 한 번 따라잡는다.
+let popupOpen = false;
+map.on('popupopen', () => {
+  popupOpen = true;
+  clearTimeout(refreshTimer); // 이미 예약된 갱신이 있다면 취소한다.
+});
+map.on('popupclose', () => {
+  popupOpen = false;
+  refresh(); // 팝업이 열려 있는 동안 놓쳤을 이동을 한 번에 반영한다.
+});
+
+map.on('moveend', () => {
+  page = 0;
+  if (popupOpen) return;
+  scheduleRefresh();
+});
+
+(async function init() {
+  await Promise.all([
+    fillSelect('sido', '/api/regions/sido'),
+    fillSelect('large', '/api/industries/large')
+  ]);
+  el('sido').disabled = false;
+  el('large').disabled = false;
+  refresh();
+})();
