@@ -3,5 +3,6 @@ build/
 !gradle/wrapper/gradle-wrapper.jar
 .env
 *.log
+*.swp
 .idea/
 .DS_Store
