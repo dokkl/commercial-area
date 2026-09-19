@@ -9,6 +9,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Repository
 public class StoreRepository {
@@ -123,6 +124,65 @@ public class StoreRepository {
         StoreFilterSql.appendWhere(sql, params, query);
 
         return jdbc.sql(sql.toString()).params(params).query(Long.class).single();
+    }
+
+    /**
+     * 화면 필터를 적용해 지정한 업종 레벨 컬럼으로 그룹 카운트한다.
+     * codeColumn/nameColumn 은 AnalysisService 가 넘기는 내부 상수(large_code 등)이지
+     * 사용자 입력이 아니므로 SQL 주입 위험이 없다.
+     */
+    public List<CategoryCount> groupCount(StoreFilter filter, String codeColumn, String nameColumn) {
+        StringBuilder sql = new StringBuilder("SELECT " + codeColumn + " AS code, "
+                + nameColumn + " AS name, COUNT(*) AS cnt FROM store");
+        Map<String, Object> params = new HashMap<>();
+        StoreFilterSql.appendWhere(sql, params, filter);
+        sql.append(" GROUP BY ").append(codeColumn).append(", ").append(nameColumn)
+           .append(" ORDER BY cnt DESC");
+
+        return jdbc.sql(sql.toString())
+                .params(params)
+                .query((rs, n) -> new CategoryCount(
+                        rs.getString("code"), rs.getString("name"), rs.getLong("cnt")))
+                .list();
+    }
+
+    /** 화면 필터를 적용해 소분류별 건수 상위 limit 개를 건수 내림차순으로 조회한다. */
+    public List<SmallCount> rankingSmall(StoreFilter filter, int limit) {
+        StringBuilder sql = new StringBuilder(
+                "SELECT small_code, small_name, COUNT(*) AS cnt FROM store");
+        Map<String, Object> params = new HashMap<>();
+        StoreFilterSql.appendWhere(sql, params, filter);
+        sql.append(" GROUP BY small_code, small_name ORDER BY cnt DESC LIMIT :limit");
+        params.put("limit", limit);
+
+        return jdbc.sql(sql.toString())
+                .params(params)
+                .query((rs, n) -> new SmallCount(
+                        rs.getString("small_code"), rs.getString("small_name"), rs.getLong("cnt")))
+                .list();
+    }
+
+    /** 주어진 소분류 코드들의 전역 점포수(industry 집계)를 소분류 코드→건수 맵으로 반환한다. */
+    public Map<String, Long> industryCountsForSmall(List<String> smallCodes) {
+        if (smallCodes.isEmpty()) {
+            return Map.of();
+        }
+        return jdbc.sql("""
+                        SELECT small_code, SUM(store_count) AS c
+                        FROM industry
+                        WHERE small_code IN (:codes)
+                        GROUP BY small_code
+                        """)
+                .param("codes", smallCodes)
+                .query((rs, n) -> Map.entry(rs.getString("small_code"), rs.getLong("c")))
+                .list().stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+
+    /** industry 테이블 전체 점포수 합(특화도 분모). 비어 있으면 0. */
+    public long industryTotal() {
+        return jdbc.sql("SELECT COALESCE(SUM(store_count), 0) FROM industry")
+                .query(Long.class).single();
     }
 
     public List<StoreSummary> findPage(MapQuery query, int page, int size) {
