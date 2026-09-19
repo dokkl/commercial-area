@@ -38,6 +38,17 @@
       </div>
 
       <button id="reset" type="button" class="reset">필터 초기화</button>
+
+      <div class="group analysis">
+        <button id="analyze" type="button" class="analyze">이 화면 분석</button>
+        <div id="analysis-result" class="analysis-result" hidden>
+          <div class="analysis-summary" id="analysis-summary"></div>
+          <h3>업종 구성 <span id="composition-level" class="level-badge"></span></h3>
+          <ul class="bars" id="composition-bars"></ul>
+          <h3>업종 순위 (특화도)</h3>
+          <ul class="ranking" id="ranking-list"></ul>
+        </div>
+      </div>
     </aside>
 
     <section class="content">

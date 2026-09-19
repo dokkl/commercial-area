@@ -379,3 +379,59 @@ map.on('moveend', () => {
   el('large').disabled = false;
   refresh();
 })();
+
+/* ---------- 화면 분석 ---------- */
+
+const LEVEL_LABEL = { large: '대분류', medium: '중분류', small: '소분류' };
+
+function renderAnalysis(data) {
+  el('analysis-result').hidden = false;
+
+  el('analysis-summary').innerHTML =
+    `총 <strong>${data.total.toLocaleString()}</strong>건 · `
+    + `면적 <strong>${data.areaKm2.toFixed(2)}</strong> km² · `
+    + `밀도 <strong>${Math.round(data.densityPerKm2).toLocaleString()}</strong> 건/km²`;
+
+  const levelBadge = el('composition-level');
+  levelBadge.textContent = data.composition.length ? (LEVEL_LABEL[data.composition[0].level] || '') : '';
+
+  const maxShare = data.composition.reduce((m, c) => Math.max(m, c.share), 0) || 1;
+  el('composition-bars').innerHTML = data.composition.map(c => `
+    <li>
+      <span class="bar-label">${escapeHtml(c.name)}</span>
+      <span class="bar-track"><span class="bar-fill" style="width:${(c.share / maxShare * 100).toFixed(1)}%"></span></span>
+      <span class="bar-value">${(c.share * 100).toFixed(1)}% (${c.count.toLocaleString()})</span>
+    </li>
+  `).join('') || '<li class="empty">표시할 업종이 없습니다.</li>';
+
+  el('ranking-list').innerHTML = data.ranking.map(r => {
+    const lq = r.lq == null ? '—' : r.lq.toFixed(2);
+    const hot = r.lq != null && r.lq >= 1.5 ? ' hot' : '';
+    return `<li>
+      <span class="rank-name">${escapeHtml(r.smallName)}</span>
+      <span class="rank-count">${r.count.toLocaleString()}건</span>
+      <span class="rank-lq${hot}">LQ ${lq}</span>
+    </li>`;
+  }).join('') || '<li class="empty">표시할 업종이 없습니다.</li>';
+}
+
+async function analyzeCurrentView() {
+  const button = el('analyze');
+  button.disabled = true;
+  button.textContent = '분석 중…';
+  try {
+    const data = await fetch('/api/analysis?' + currentParams()).then(r => r.json());
+    if (data.error) {
+      console.warn('분석 실패', data);
+      return;
+    }
+    renderAnalysis(data);
+  } catch (e) {
+    console.error('분석 실패', e);
+  } finally {
+    button.disabled = false;
+    button.textContent = '이 화면 분석';
+  }
+}
+
+el('analyze').addEventListener('click', analyzeCurrentView);
