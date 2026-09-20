@@ -78,6 +78,11 @@ public class StoreRepository {
         return jdbc.sql("SELECT COUNT(*) FROM store").query(Long.class).single();
     }
 
+    /** 새 최신 스냅샷으로 교체하기 위해 store 전체를 비운다. */
+    public void deleteAllStores() {
+        jdbc.sql("DELETE FROM store").update();
+    }
+
     public List<GridCell> aggregate(MapQuery query, double cell) {
         StringBuilder sql = new StringBuilder("""
                 SELECT FLOOR(lat / :cell) AS gy,
