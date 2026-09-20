@@ -7,7 +7,9 @@ import org.springframework.stereotype.Repository;
 
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Repository
@@ -71,5 +73,55 @@ public class SnapshotRepository {
                 VALUES (:ym, :cnt, NOW())
                 """)
                 .param("ym", snapshotYm).param("cnt", rowCount).update();
+    }
+
+    /**
+     * 적재된 모든 스냅샷(import_log)에 대해 필터에 맞는 점포수를 분기순으로 반환한다.
+     * 필터를 LEFT JOIN의 ON 조건에 넣어, 해당 분기에 매칭 0건이어도 count 0으로 계열에 남긴다.
+     */
+    public List<SnapshotCount> countBySnapshot(TrendQuery filter) {
+        StringBuilder sql = new StringBuilder("""
+                SELECT l.snapshot_ym AS ym, COUNT(s.store_id) AS cnt
+                FROM import_log l
+                LEFT JOIN store_snapshot s
+                  ON s.snapshot_ym = l.snapshot_ym
+                """);
+        Map<String, Object> params = new HashMap<>();
+        TrendFilterSql.appendConditions(sql, params, filter, "s.", "");
+        sql.append(" GROUP BY l.snapshot_ym ORDER BY l.snapshot_ym");
+
+        return jdbc.sql(sql.toString()).params(params)
+                .query((rs, n) -> new SnapshotCount(rs.getString("ym"), rs.getLong("cnt")))
+                .list();
+    }
+
+    /** curr에 있고(필터 적용) prev에는 store_id가 없는 신규 점포 수. */
+    public long openedBetween(String prev, String curr, TrendQuery filter) {
+        StringBuilder sql = new StringBuilder("""
+                SELECT COUNT(*) FROM store_snapshot c
+                WHERE c.snapshot_ym = :curr
+                  AND NOT EXISTS (SELECT 1 FROM store_snapshot p
+                                  WHERE p.snapshot_ym = :prev AND p.store_id = c.store_id)
+                """);
+        Map<String, Object> params = new HashMap<>();
+        params.put("curr", curr);
+        params.put("prev", prev);
+        TrendFilterSql.appendConditions(sql, params, filter, "c.", "");
+        return jdbc.sql(sql.toString()).params(params).query(Long.class).single();
+    }
+
+    /** prev에 있고(필터 적용) curr에는 store_id가 없는 폐업 점포 수. */
+    public long closedBetween(String prev, String curr, TrendQuery filter) {
+        StringBuilder sql = new StringBuilder("""
+                SELECT COUNT(*) FROM store_snapshot p
+                WHERE p.snapshot_ym = :prev
+                  AND NOT EXISTS (SELECT 1 FROM store_snapshot c
+                                  WHERE c.snapshot_ym = :curr AND c.store_id = p.store_id)
+                """);
+        Map<String, Object> params = new HashMap<>();
+        params.put("curr", curr);
+        params.put("prev", prev);
+        TrendFilterSql.appendConditions(sql, params, filter, "p.", "");
+        return jdbc.sql(sql.toString()).params(params).query(Long.class).single();
     }
 }
