@@ -34,7 +34,7 @@ class StoreImportRunnerUnitTest {
     }
 
     private ImportProperties props() {
-        return new ImportProperties(true, csvDir.toString(), List.of("서울"), 100);
+        return new ImportProperties(true, csvDir.toString(), List.of("서울"), 100, "202606");
     }
 
     @Test

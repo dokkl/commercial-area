@@ -6,7 +6,8 @@ import java.text.Normalizer;
 import java.util.List;
 
 @ConfigurationProperties(prefix = "app.import")
-public record ImportProperties(boolean enabled, String dir, List<String> include, int batchSize) {
+public record ImportProperties(boolean enabled, String dir, List<String> include, int batchSize,
+                               String snapshot) {
     public ImportProperties {
         if (include == null) include = List.of();
         if (batchSize <= 0) batchSize = 1000;
@@ -25,5 +26,10 @@ public record ImportProperties(boolean enabled, String dir, List<String> include
         return include.stream()
                 .map(pattern -> Normalizer.normalize(pattern, Normalizer.Form.NFC))
                 .anyMatch(normalizedFileName::contains);
+    }
+
+    /** 스냅샷 라벨(YYYYMM)이 유효한 6자리 숫자인지. */
+    public boolean hasValidSnapshot() {
+        return snapshot != null && snapshot.matches("\\d{6}");
     }
 }
