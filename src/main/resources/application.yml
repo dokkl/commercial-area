@@ -19,6 +19,7 @@ app:
     dir: /data/csv
     include: ["서울", "경기"]
     batch-size: 1000
+    snapshot: ${APP_IMPORT_SNAPSHOT:}
 
 logging:
   level:
