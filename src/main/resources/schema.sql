@@ -54,3 +54,25 @@ CREATE TABLE IF NOT EXISTS industry (
   store_count INT          NOT NULL,
   PRIMARY KEY (large_code, medium_code, small_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS store_snapshot (
+  snapshot_ym VARCHAR(6)  NOT NULL,
+  store_id    VARCHAR(24) NOT NULL,
+  sido_code   VARCHAR(10) NOT NULL,
+  sgg_code    VARCHAR(10) NOT NULL,
+  dong_code   VARCHAR(20),
+  large_code  VARCHAR(10) NOT NULL,
+  medium_code VARCHAR(10) NOT NULL,
+  small_code  VARCHAR(10) NOT NULL,
+  PRIMARY KEY (snapshot_ym, store_id),
+  KEY idx_snap_region   (snapshot_ym, sgg_code, dong_code),
+  KEY idx_snap_industry (snapshot_ym, large_code, medium_code, small_code),
+  KEY idx_store_snap    (store_id, snapshot_ym)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS import_log (
+  snapshot_ym  VARCHAR(6) NOT NULL,
+  row_count    BIGINT     NOT NULL,
+  completed_at DATETIME   NOT NULL,
+  PRIMARY KEY (snapshot_ym)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
