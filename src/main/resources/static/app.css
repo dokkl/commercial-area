@@ -173,3 +173,28 @@ body {
 .rank-lq.hot { color: #c2410c; font-weight: bold; }
 
 .bars .empty, .ranking .empty { color: #999; }
+
+/* ---------- 상권 추이 ---------- */
+.trend-btn {
+  width: 100%;
+  padding: 0.5rem;
+  margin-top: 0.5rem;
+  background: #0f766e;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+.trend-btn:disabled { opacity: 0.6; cursor: default; }
+
+.trend-result { margin-top: 0.75rem; }
+.trend-chart { margin-bottom: 0.5rem; }
+.trend-svg { width: 100%; height: auto; background: #f7f7f8; border-radius: 4px; }
+
+.trend-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+.trend-table th, .trend-table td { padding: 0.25rem 0.3rem; text-align: right; border-bottom: 1px solid #f0f0f0; }
+.trend-table th:first-child, .trend-table td:first-child { text-align: left; }
+.trend-table .up { color: #059669; }
+.trend-table .down { color: #dc2626; }
+.trend-table .empty td { text-align: center; color: #999; }
