@@ -1,0 +1,85 @@
+# 운영(Lightsail)용 compose. GitHub Actions가 서버의 /opt/commercial-area/docker-compose.yml로 복사한다.
+# 값은 같은 디렉토리의 .env(배포 시 GitHub Secrets로 생성)에서 읽는다.
+name: commercial-area
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
+
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_general_ci
+      - --innodb-buffer-pool-size=${INNODB_BUFFER_POOL_SIZE:-1G}
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      TZ: Asia/Seoul
+    # 외부 노출 없음. 필요하면 SSH 터널: ssh -L 3307:127.0.0.1:3307 ubuntu@<IP>
+    ports:
+      - "127.0.0.1:3307:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      # $$ = 컨테이너 안의 환경변수를 사용 (compose 설정에 비밀번호가 풀려 보이지 않도록)
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    logging: *default-logging
+
+  app:
+    image: ${APP_IMAGE}
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE}?rewriteBatchedStatements=true&characterEncoding=UTF-8&serverTimezone=Asia/Seoul
+      SPRING_DATASOURCE_USERNAME: ${MYSQL_USER}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD}
+      SPRING_THYMELEAF_CACHE: "true"
+      APP_IMPORT_DIR: /data/csv
+      APP_IMPORT_INCLUDE: ${IMPORT_INCLUDE}
+      JAVA_TOOL_OPTIONS: >-
+        -XX:MaxRAMPercentage=75
+        -XX:+ExitOnOutOfMemoryError
+        -Duser.timezone=Asia/Seoul
+      TZ: Asia/Seoul
+    mem_limit: ${APP_MEM_LIMIT:-1536m}
+    volumes:
+      - ./csv:/data/csv:ro
+    # 헬스체크·터널 용도로만 로컬 바인딩. 외부 트래픽은 Caddy가 받는다.
+    ports:
+      - "127.0.0.1:8080:8080"
+    logging: *default-logging
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - app
+    environment:
+      # 도메인을 넣으면 Let's Encrypt 인증서 자동 발급, 비우면 :80(HTTP)로 서빙
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    logging: *default-logging
+
+volumes:
+  mysql-data:
+  caddy-data:
+  caddy-config:

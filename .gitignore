@@ -2,7 +2,15 @@
 build/
 !gradle/wrapper/gradle-wrapper.jar
 .env
+.env.prod
 *.log
 *.swp
 .idea/
 .DS_Store
+
+# Terraform (.terraform.lock.hcl은 커밋한다)
+infra/terraform/.terraform/
+infra/terraform/*.tfstate
+infra/terraform/*.tfstate.*
+infra/terraform/terraform.tfvars
+infra/terraform/*.tfplan

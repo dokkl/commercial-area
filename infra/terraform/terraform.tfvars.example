@@ -1,0 +1,5 @@
+# cp terraform.tfvars.example terraform.tfvars
+# aws_profile         = "personal"
+# bundle_id           = "medium_3_0"      # 4GB. 비용을 줄이려면 small_3_0(2GB) + INNODB_BUFFER_POOL_SIZE=512M
+# ssh_public_key_path = "~/.ssh/commercial-area.pub"
+# ssh_allowed_cidrs   = ["0.0.0.0/0"]
