@@ -48,6 +48,7 @@ services:
       SPRING_THYMELEAF_CACHE: "true"
       APP_IMPORT_DIR: /data/csv
       APP_IMPORT_INCLUDE: ${IMPORT_INCLUDE}
+      APP_IMPORT_SNAPSHOT: ${SNAPSHOT}
       JAVA_TOOL_OPTIONS: >-
         -XX:MaxRAMPercentage=75
         -XX:+ExitOnOutOfMemoryError

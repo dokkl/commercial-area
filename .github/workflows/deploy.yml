@@ -102,8 +102,10 @@ jobs:
           MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
           MYSQL_ROOT_PASSWORD: ${{ secrets.MYSQL_ROOT_PASSWORD }}
           IMPORT_INCLUDE: ${{ vars.IMPORT_INCLUDE || '서울,경기' }}
+          SNAPSHOT: ${{ vars.SNAPSHOT }}
           SITE_ADDRESS: ${{ vars.SITE_ADDRESS || ':80' }}
         run: |
+          : "${SNAPSHOT:?GitHub Variable SNAPSHOT(YYYYMM, 예: 202606)을 production 환경에 등록하세요}"
           umask 077
           cat > .env.prod <<EOF
           APP_IMAGE=$APP_IMAGE
@@ -112,6 +114,7 @@ jobs:
           MYSQL_PASSWORD=$MYSQL_PASSWORD
           MYSQL_ROOT_PASSWORD=$MYSQL_ROOT_PASSWORD
           IMPORT_INCLUDE=$IMPORT_INCLUDE
+          SNAPSHOT=$SNAPSHOT
           SITE_ADDRESS=$SITE_ADDRESS
           EOF
 

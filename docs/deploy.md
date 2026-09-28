@@ -44,6 +44,7 @@ Settings → Environments → `production` 을 만들고 아래를 등록한다.
 | Secret | `LIGHTSAIL_KNOWN_HOSTS` | `ssh-keyscan -H <IP>` 출력 |
 | Secret | `MYSQL_PASSWORD` | 임의의 강한 비밀번호 |
 | Secret | `MYSQL_ROOT_PASSWORD` | 임의의 강한 비밀번호 |
+| Variable | `SNAPSHOT` | 올린 CSV의 기준 분기(YYYYMM), 예: `202606`. 필수 |
 | Variable | `IMPORT_INCLUDE` | (선택) 기본 `서울,경기` |
 | Variable | `SITE_ADDRESS` | (선택) `map.example.com` — 비우면 `:80` HTTP |
 
