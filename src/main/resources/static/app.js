@@ -379,3 +379,129 @@ map.on('moveend', () => {
   el('large').disabled = false;
   refresh();
 })();
+
+/* ---------- 화면 분석 ---------- */
+
+const LEVEL_LABEL = { large: '대분류', medium: '중분류', small: '소분류' };
+
+function renderAnalysis(data) {
+  el('analysis-result').hidden = false;
+
+  el('analysis-summary').innerHTML =
+    `총 <strong>${data.total.toLocaleString()}</strong>건 · `
+    + `면적 <strong>${data.areaKm2.toFixed(2)}</strong> km² · `
+    + `밀도 <strong>${Math.round(data.densityPerKm2).toLocaleString()}</strong> 건/km²`;
+
+  const levelBadge = el('composition-level');
+  levelBadge.textContent = data.composition.length ? (LEVEL_LABEL[data.composition[0].level] || '') : '';
+
+  const maxShare = data.composition.reduce((m, c) => Math.max(m, c.share), 0) || 1;
+  el('composition-bars').innerHTML = data.composition.map(c => `
+    <li>
+      <span class="bar-label">${escapeHtml(c.name)}</span>
+      <span class="bar-track"><span class="bar-fill" style="width:${(c.share / maxShare * 100).toFixed(1)}%"></span></span>
+      <span class="bar-value">${(c.share * 100).toFixed(1)}% (${c.count.toLocaleString()})</span>
+    </li>
+  `).join('') || '<li class="empty">표시할 업종이 없습니다.</li>';
+
+  el('ranking-list').innerHTML = data.ranking.map(r => {
+    const lq = r.lq == null ? '—' : r.lq.toFixed(2);
+    const hot = r.lq != null && r.lq >= 1.5 ? ' hot' : '';
+    return `<li>
+      <span class="rank-name">${escapeHtml(r.smallName)}</span>
+      <span class="rank-count">${r.count.toLocaleString()}건</span>
+      <span class="rank-lq${hot}">LQ ${lq}</span>
+    </li>`;
+  }).join('') || '<li class="empty">표시할 업종이 없습니다.</li>';
+}
+
+async function analyzeCurrentView() {
+  const button = el('analyze');
+  button.disabled = true;
+  button.textContent = '분석 중…';
+  try {
+    const data = await fetch('/api/analysis?' + currentParams()).then(r => r.json());
+    if (data.error) {
+      console.warn('분석 실패', data);
+      return;
+    }
+    renderAnalysis(data);
+  } catch (e) {
+    console.error('분석 실패', e);
+  } finally {
+    button.disabled = false;
+    button.textContent = '이 화면 분석';
+  }
+}
+
+el('analyze').addEventListener('click', analyzeCurrentView);
+
+/* ---------- 상권 추이 ---------- */
+
+function trendParams() {
+  const params = new URLSearchParams();
+  for (const key of ['sido', 'sgg', 'dong', 'large', 'medium', 'small']) {
+    if (filters[key]) params.set(key, filters[key]);
+  }
+  return params;
+}
+
+function renderTrendChart(snapshots) {
+  const W = 260, H = 90, padX = 8, padY = 12;
+  if (snapshots.length < 2) {
+    return '<p class="hint">추이를 보려면 2개 이상 분기 스냅샷이 필요합니다.</p>';
+  }
+  const counts = snapshots.map(s => s.count);
+  const max = Math.max(...counts), min = Math.min(...counts);
+  const span = max - min || 1;
+  const stepX = (W - padX * 2) / (snapshots.length - 1);
+  const points = snapshots.map((s, i) => {
+    const x = padX + i * stepX;
+    const y = padY + (H - padY * 2) * (1 - (s.count - min) / span);
+    return [x, y];
+  });
+  const poly = points.map(p => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+  const dots = points.map(p =>
+    `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="2.5" fill="#1c5ed6"/>`).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" class="trend-svg" role="img" aria-label="점포수 추이">
+      <polyline fill="none" stroke="#1c5ed6" stroke-width="2" points="${poly}"/>
+      ${dots}
+    </svg>`;
+}
+
+function renderTrend(data) {
+  el('trend-result').hidden = false;
+  el('trend-chart').innerHTML = renderTrendChart(data.snapshots);
+
+  el('trend-body').innerHTML = data.snapshots.map(s => {
+    const opened = s.opened == null ? '—' : `<span class="up">▲ ${s.opened.toLocaleString()}</span>`;
+    const closed = s.closed == null ? '—' : `<span class="down">▼ ${s.closed.toLocaleString()}</span>`;
+    return `<tr>
+      <td>${escapeHtml(s.ym)}</td>
+      <td>${s.count.toLocaleString()}</td>
+      <td>${opened}</td>
+      <td>${closed}</td>
+    </tr>`;
+  }).join('') || '<tr class="empty"><td colspan="4">적재된 스냅샷이 없습니다.</td></tr>';
+}
+
+async function loadTrend() {
+  const button = el('trend');
+  button.disabled = true;
+  button.textContent = '불러오는 중…';
+  try {
+    const data = await fetch('/api/trend?' + trendParams()).then(r => r.json());
+    if (data.error) {
+      console.warn('추이 조회 실패', data);
+      return;
+    }
+    renderTrend(data);
+  } catch (e) {
+    console.error('추이 조회 실패', e);
+  } finally {
+    button.disabled = false;
+    button.textContent = '상권 추이 보기';
+  }
+}
+
+el('trend').addEventListener('click', loadTrend);

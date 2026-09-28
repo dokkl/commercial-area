@@ -11,7 +11,7 @@ final class StoreFilterSql {
     private StoreFilterSql() {
     }
 
-    static void appendWhere(StringBuilder sql, Map<String, Object> params, MapQuery q) {
+    static void appendWhere(StringBuilder sql, Map<String, Object> params, StoreFilter q) {
         sql.append(" WHERE lat BETWEEN :minLat AND :maxLat")
            .append(" AND lon BETWEEN :minLon AND :maxLon");
         params.put("minLat", q.minLat());

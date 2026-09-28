@@ -11,14 +11,14 @@ class ImportPropertiesTest {
 
     @Test
     void include가_비어있으면_모든_파일을_허용한다() {
-        ImportProperties props = new ImportProperties(true, "/tmp", List.of(), 1000);
+        ImportProperties props = new ImportProperties(true, "/tmp", List.of(), 1000, "202606");
 
         assertThat(props.matches("아무_파일.csv")).isTrue();
     }
 
     @Test
     void include_패턴을_포함하는_파일명은_허용한다() {
-        ImportProperties props = new ImportProperties(true, "/tmp", List.of("서울", "경기"), 1000);
+        ImportProperties props = new ImportProperties(true, "/tmp", List.of("서울", "경기"), 1000, "202606");
 
         assertThat(props.matches("소상공인_서울_202606.csv")).isTrue();
         assertThat(props.matches("소상공인_제주_202606.csv")).isFalse();
@@ -31,10 +31,22 @@ class ImportPropertiesTest {
      */
     @Test
     void NFD로_분해된_파일명도_NFC_include_패턴과_매칭된다() {
-        ImportProperties props = new ImportProperties(true, "/tmp", List.of("서울"), 1000);
+        ImportProperties props = new ImportProperties(true, "/tmp", List.of("서울"), 1000, "202606");
 
         String nfdFileName = Normalizer.normalize("소상공인_서울_202606.csv", Normalizer.Form.NFD);
 
         assertThat(props.matches(nfdFileName)).isTrue();
+    }
+
+    @Test
+    void snapshot이_6자리_숫자면_유효하다() {
+        assertThat(new ImportProperties(true, "/tmp", List.of(), 1000, "202606").hasValidSnapshot()).isTrue();
+    }
+
+    @Test
+    void snapshot이_없거나_형식이_틀리면_무효다() {
+        assertThat(new ImportProperties(true, "/tmp", List.of(), 1000, null).hasValidSnapshot()).isFalse();
+        assertThat(new ImportProperties(true, "/tmp", List.of(), 1000, "2026Q2").hasValidSnapshot()).isFalse();
+        assertThat(new ImportProperties(true, "/tmp", List.of(), 1000, "20260").hasValidSnapshot()).isFalse();
     }
 }

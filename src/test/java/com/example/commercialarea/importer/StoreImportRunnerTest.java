@@ -32,6 +32,8 @@ class StoreImportRunnerTest {
         jdbc.sql("DELETE FROM store").update();
         jdbc.sql("DELETE FROM region").update();
         jdbc.sql("DELETE FROM industry").update();
+        jdbc.sql("DELETE FROM store_snapshot").update();
+        jdbc.sql("DELETE FROM import_log").update();
     }
 
     private void writeFixture(String fileName) throws IOException {
@@ -43,19 +45,21 @@ class StoreImportRunnerTest {
     void 디렉토리의_CSV를_적재하고_깨진_행은_건너뛴다() throws Exception {
         writeFixture("소상공인_서울_202606.csv");
 
-        ImportSummary summary = runner.importFrom(csvDir);
+        ImportSummary summary = runner.importFrom(csvDir, "202606", true);
 
         // 픽스처 6행 중 좌표 없는 1행은 실패한다.
         assertThat(summary.failed()).isEqualTo(1);
         assertThat(summary.processed()).isEqualTo(5);
         assertThat(storeRepository.countAll()).isEqualTo(5);
+        assertThat(jdbc.sql("SELECT COUNT(*) FROM store_snapshot WHERE snapshot_ym='202606'")
+                .query(Long.class).single()).isEqualTo(5);
     }
 
     @Test
     void include_패턴에_맞지_않는_파일은_건너뛴다() throws Exception {
         writeFixture("소상공인_제주_202606.csv");
 
-        ImportSummary summary = runner.importFrom(csvDir);
+        ImportSummary summary = runner.importFrom(csvDir, "202606", true);
 
         assertThat(summary.processed()).isZero();
         assertThat(storeRepository.countAll()).isZero();
@@ -65,8 +69,8 @@ class StoreImportRunnerTest {
     void 두_번_적재해도_행이_중복되지_않는다() throws Exception {
         writeFixture("소상공인_서울_202606.csv");
 
-        runner.importFrom(csvDir);
-        runner.importFrom(csvDir);
+        runner.importFrom(csvDir, "202606", true);
+        runner.importFrom(csvDir, "202606", true);
 
         assertThat(storeRepository.countAll()).isEqualTo(5);
     }
@@ -74,7 +78,7 @@ class StoreImportRunnerTest {
     @Test
     void 룩업_테이블에_건수와_bbox가_채워진다() throws Exception {
         writeFixture("소상공인_서울_202606.csv");
-        runner.importFrom(csvDir);
+        runner.importFrom(csvDir, "202606", true);
 
         lookupBuilder.rebuild();
 
@@ -99,7 +103,7 @@ class StoreImportRunnerTest {
     @Test
     void 행정동이_없는_행도_룩업에_포함된다() throws Exception {
         writeFixture("소상공인_서울_202606.csv");
-        runner.importFrom(csvDir);
+        runner.importFrom(csvDir, "202606", true);
 
         lookupBuilder.rebuild();
 

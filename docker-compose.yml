@@ -31,6 +31,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD}
       APP_IMPORT_DIR: /data/csv
       APP_IMPORT_INCLUDE: ${IMPORT_INCLUDE}
+      APP_IMPORT_SNAPSHOT: ${SNAPSHOT}
     volumes:
       - ${CSV_DIR}:/data/csv:ro
     ports:
