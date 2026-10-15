@@ -70,3 +70,9 @@ variable "auto_snapshot_time" {
   type        = string
   default     = "18:00"
 }
+
+variable "domain_name" {
+  description = "Route 53 호스팅 존이 있는 도메인 (예: seeplus.net). apex와 www A 레코드를 고정 IP로 만든다. null이면 생략"
+  type        = string
+  default     = null
+}

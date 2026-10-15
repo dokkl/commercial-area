@@ -3,3 +3,4 @@
 # bundle_id           = "medium_3_0"      # 4GB. 비용을 줄이려면 small_3_0(2GB) + INNODB_BUFFER_POOL_SIZE=512M
 # ssh_public_key_path = "~/.ssh/commercial-area.pub"
 # ssh_allowed_cidrs   = ["0.0.0.0/0"]
+# domain_name       = "example.com"     # Route 53 호스팅 존이 있는 도메인. apex/www A 레코드 생성

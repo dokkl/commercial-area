@@ -10,3 +10,8 @@ output "ssh_command" {
 output "app_url" {
   value = "http://${aws_lightsail_static_ip.this.ip_address}"
 }
+
+output "site_address" {
+  description = "GitHub Variable SITE_ADDRESS에 넣을 값 (Caddy가 HTTPS 인증서를 발급할 주소)"
+  value       = var.domain_name == null ? null : "${var.domain_name}, www.${var.domain_name}"
+}
