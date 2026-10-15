@@ -60,6 +60,14 @@ public class StoreImportRunner implements ApplicationRunner {
             return;
         }
 
+        Path dir = Path.of(settings.dir());
+        if (findTargets(dir).isEmpty()) {
+            // 기존 데이터를 지우거나 완료로 기록하면 CSV를 올린 뒤에도 적재가 건너뛰어진다.
+            log.warn("스냅샷 {}의 적재 대상 CSV가 없어 건너뛴다 (dir={}, include={}). CSV를 올린 뒤 app을 재시작하세요.",
+                    snapshot, dir, settings.include());
+            return;
+        }
+
         Optional<String> latest = snapshotRepository.latestSnapshotYm();
         boolean isNewest = latest.isEmpty() || snapshot.compareTo(latest.get()) >= 0;
 
@@ -70,7 +78,7 @@ public class StoreImportRunner implements ApplicationRunner {
         }
         log.info("스냅샷 {} 적재 시작 (최신여부={})", snapshot, isNewest);
 
-        ImportSummary summary = importFrom(Path.of(settings.dir()), snapshot, isNewest);
+        ImportSummary summary = importFrom(dir, snapshot, isNewest);
 
         if (isNewest && repository.countAll() > 0) {
             lookupBuilder.rebuild();
@@ -80,36 +88,39 @@ public class StoreImportRunner implements ApplicationRunner {
     }
 
     public ImportSummary importFrom(Path dir, String snapshot, boolean isNewest) {
-        if (!Files.isDirectory(dir)) {
-            log.warn("CSV 디렉토리가 없다: {}", dir);
-            return new ImportSummary(0, 0);
-        }
-
         long started = System.currentTimeMillis();
         long processed = 0;
         long failed = 0;
 
-        try (Stream<Path> files = Files.list(dir)) {
-            List<Path> targets = files
-                    .filter(p -> p.getFileName().toString().toLowerCase().endsWith(".csv"))
-                    .filter(p -> settings.matches(p.getFileName().toString()))
-                    .sorted()
-                    .toList();
-
-            log.info("적재 대상 파일 {}개", targets.size());
-            for (Path file : targets) {
-                ImportSummary one = importFile(file, snapshot, isNewest);
-                processed += one.processed();
-                failed += one.failed();
-            }
-        } catch (IOException e) {
-            throw new IllegalStateException("CSV 디렉토리 탐색 실패: " + dir, e);
+        List<Path> targets = findTargets(dir);
+        log.info("적재 대상 파일 {}개", targets.size());
+        for (Path file : targets) {
+            ImportSummary one = importFile(file, snapshot, isNewest);
+            processed += one.processed();
+            failed += one.failed();
         }
 
         ImportSummary total = new ImportSummary(processed, failed);
         log.info("전체 적재 완료: 처리 {} / 실패 {} ({}초)",
                 processed, failed, (System.currentTimeMillis() - started) / 1000);
         return total;
+    }
+
+    /** include 패턴에 맞는 CSV 목록(이름순). 디렉토리가 없으면 빈 목록. */
+    private List<Path> findTargets(Path dir) {
+        if (!Files.isDirectory(dir)) {
+            log.warn("CSV 디렉토리가 없다: {}", dir);
+            return List.of();
+        }
+        try (Stream<Path> files = Files.list(dir)) {
+            return files
+                    .filter(p -> p.getFileName().toString().toLowerCase().endsWith(".csv"))
+                    .filter(p -> settings.matches(p.getFileName().toString()))
+                    .sorted()
+                    .toList();
+        } catch (IOException e) {
+            throw new IllegalStateException("CSV 디렉토리 탐색 실패: " + dir, e);
+        }
     }
 
     private ImportSummary importFile(Path file, String snapshot, boolean isNewest) {

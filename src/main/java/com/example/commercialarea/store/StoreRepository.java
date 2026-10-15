@@ -78,9 +78,12 @@ public class StoreRepository {
         return jdbc.sql("SELECT COUNT(*) FROM store").query(Long.class).single();
     }
 
-    /** 새 최신 스냅샷으로 교체하기 위해 store 전체를 비운다. */
+    /**
+     * 새 최신 스냅샷으로 교체하기 위해 store 전체를 비운다.
+     * 수백만 행을 DELETE로 지우면 수 분간 테이블을 잡고 있어 조회 커넥션이 고갈되므로 TRUNCATE를 쓴다.
+     */
     public void deleteAllStores() {
-        jdbc.sql("DELETE FROM store").update();
+        jdbc.sql("TRUNCATE TABLE store").update();
     }
 
     public List<GridCell> aggregate(MapQuery query, double cell) {

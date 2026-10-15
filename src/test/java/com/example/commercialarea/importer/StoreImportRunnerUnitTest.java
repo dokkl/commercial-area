@@ -70,6 +70,38 @@ class StoreImportRunnerUnitTest {
     }
 
     @Test
+    void 적재_대상_CSV가_없으면_기존_데이터를_지우지_않고_완료로_기록하지도_않는다() {
+        // csvDir이 빈 상태 = CSV 업로드 전 배포. 다음 기동 때 다시 적재를 시도해야 한다.
+        StoreRepository repo = mock(StoreRepository.class);
+        SnapshotRepository snap = mock(SnapshotRepository.class);
+        LookupBuilder lookup = mock(LookupBuilder.class);
+        when(snap.hasSnapshot("202606")).thenReturn(false);
+        when(snap.latestSnapshotYm()).thenReturn(Optional.empty());
+
+        runner(props("202606"), repo, snap, lookup).run(new DefaultApplicationArguments());
+
+        verify(repo, never()).deleteAllStores();
+        verify(snap, never()).deleteSnapshotRows("202606");
+        verify(lookup, never()).rebuild();
+        verify(snap, never()).recordImport(eq("202606"), org.mockito.ArgumentMatchers.anyLong());
+    }
+
+    @Test
+    void include_패턴에_맞는_CSV가_없어도_완료로_기록하지_않는다() throws Exception {
+        writeFixture("소상공인_제주_202606.csv");
+        StoreRepository repo = mock(StoreRepository.class);
+        SnapshotRepository snap = mock(SnapshotRepository.class);
+        LookupBuilder lookup = mock(LookupBuilder.class);
+        when(snap.hasSnapshot("202606")).thenReturn(false);
+        when(snap.latestSnapshotYm()).thenReturn(Optional.empty());
+
+        runner(props("202606"), repo, snap, lookup).run(new DefaultApplicationArguments());
+
+        verify(repo, never()).deleteAllStores();
+        verify(snap, never()).recordImport(eq("202606"), org.mockito.ArgumentMatchers.anyLong());
+    }
+
+    @Test
     void 최신_스냅샷이면_store를_비우고_슬림과_store에_모두_적재하고_룩업을_재생성한다() throws Exception {
         writeFixture("소상공인_서울_202606.csv");
         StoreRepository repo = mock(StoreRepository.class);
